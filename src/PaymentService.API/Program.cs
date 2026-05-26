@@ -19,9 +19,9 @@ builder.Services.AddRazorComponents()
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    if (builder.Environment.IsProduction() || connectionString!.Contains(".db") || connectionString.Contains("DataSource"))
+    if (builder.Environment.IsProduction() || connectionString == null || connectionString.Contains(".db") || connectionString.Contains("DataSource"))
     {
-        options.UseSqlite(connectionString.Contains(".db") ? connectionString : "Data Source=PaymentService.db");
+        options.UseSqlite(connectionString != null && connectionString.Contains(".db") ? connectionString : "Data Source=PaymentService.db");
     }
     else
     {
