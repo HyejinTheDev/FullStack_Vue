@@ -16,8 +16,18 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // === Database ===
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (builder.Environment.IsProduction() || connectionString!.Contains(".db") || connectionString.Contains("DataSource"))
+    {
+        options.UseSqlite(connectionString.Contains(".db") ? connectionString : "Data Source=PaymentService.db");
+    }
+    else
+    {
+        options.UseSqlServer(connectionString);
+    }
+});
 
 // === Auth State (Scoped per Blazor circuit) ===
 builder.Services.AddScoped<AuthStateService>();
