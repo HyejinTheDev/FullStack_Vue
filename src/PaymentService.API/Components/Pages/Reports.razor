@@ -1,0 +1,185 @@
+@page "/reports"
+@using PaymentService.API.Data
+@using PaymentService.API.Entities
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+@if (!AuthState.IsAdmin)
+{
+    <div class="container">
+        <div class="card empty-state">
+            <div class="empty-icon">🔒</div>
+            <h3>Không có quyền truy cập</h3>
+            <p>Trang này chỉ dành cho Admin.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">📊 Báo cáo doanh thu</h1>
+                <p class="page-subtitle">Tổng quan doanh thu và thống kê hóa đơn</p>
+            </div>
+        </div>
+
+        @if (_loaded)
+        {
+            <!-- Overview Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--amount">💰</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Tổng doanh thu</span>
+                        <span class="stat-value stat-value--primary">@FormatCurrency(_totalRevenue)</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--total">📋</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Tổng hóa đơn</span>
+                        <span class="stat-value">@_totalInvoices</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--paid">✅</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Đã thanh toán</span>
+                        <span class="stat-value stat-value--success">@_paidCount</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--pending">🔴</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Chưa thu</span>
+                        <span class="stat-value stat-value--warning">@(_pendingCount + _overdueCount)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-grid">
+                <!-- Doanh thu theo tháng -->
+                <div class="card">
+                    <h3 class="card-title">📅 Doanh thu theo tháng</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Tháng</th>
+                                <th>Doanh thu</th>
+                                <th>Số HĐ</th>
+                                <th>Tỷ trọng</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _monthlyRevenue)
+                            {
+                                <tr>
+                                    <td style="font-weight:600; color:var(--text-primary);">@item.Month</td>
+                                    <td class="amount">@FormatCurrency(item.Revenue)</td>
+                                    <td>@item.Count</td>
+                                    <td>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" style="width: @(GetPercent(item.Revenue))%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Doanh thu theo khóa học -->
+                <div class="card">
+                    <h3 class="card-title">📚 Doanh thu theo khóa học</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Khóa học</th>
+                                <th>Doanh thu</th>
+                                <th>Học viên</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _courseRevenue)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="course-info">
+                                            <span class="course-name">@item.CourseName</span>
+                                            <span class="course-id">@item.CourseId</span>
+                                        </div>
+                                    </td>
+                                    <td class="amount">@FormatCurrency(item.Revenue)</td>
+                                    <td>@item.StudentCount</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card" style="padding:40px; text-align:center; color:var(--text-muted);">
+                Đang tải báo cáo...
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _loaded;
+    private decimal _totalRevenue;
+    private int _totalInvoices, _paidCount, _pendingCount, _overdueCount;
+    private List<MonthlyItem> _monthlyRevenue = new();
+    private List<CourseItem> _courseRevenue = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsLoggedIn)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+        if (!AuthState.IsAdmin) return;
+
+        var invoices = await Db.Invoices.Include(i => i.User).ToListAsync();
+        var paid = invoices.Where(i => i.Status == InvoiceStatus.Paid).ToList();
+
+        _totalInvoices = invoices.Count;
+        _paidCount = paid.Count;
+        _pendingCount = invoices.Count(i => i.Status == InvoiceStatus.Pending);
+        _overdueCount = invoices.Count(i => i.Status == InvoiceStatus.Overdue);
+        _totalRevenue = paid.Sum(i => i.Amount);
+
+        _monthlyRevenue = paid
+            .GroupBy(i => (i.PaidAt ?? i.CreatedAt).ToString("yyyy-MM"))
+            .Select(g => new MonthlyItem { Month = g.Key, Revenue = g.Sum(i => i.Amount), Count = g.Count() })
+            .OrderBy(m => m.Month).ToList();
+
+        _courseRevenue = paid
+            .GroupBy(i => new { i.CourseId, i.CourseName })
+            .Select(g => new CourseItem
+            {
+                CourseId = g.Key.CourseId ?? "N/A",
+                CourseName = g.Key.CourseName,
+                Revenue = g.Sum(i => i.Amount),
+                StudentCount = g.Select(i => i.UserId).Distinct().Count()
+            })
+            .OrderByDescending(c => c.Revenue).ToList();
+
+        _loaded = true;
+    }
+
+    private string FormatCurrency(decimal amount) => amount.ToString("N0") + " ₫";
+
+    private double GetPercent(decimal revenue) =>
+        _totalRevenue > 0 ? (double)(revenue / _totalRevenue * 100) : 0;
+
+    private record MonthlyItem { public string Month { get; init; } = ""; public decimal Revenue { get; init; } public int Count { get; init; } }
+    private record CourseItem { public string CourseId { get; init; } = ""; public string CourseName { get; init; } = ""; public decimal Revenue { get; init; } public int StudentCount { get; init; } }
+}

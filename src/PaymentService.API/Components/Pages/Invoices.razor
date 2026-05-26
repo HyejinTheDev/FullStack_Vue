@@ -1,0 +1,237 @@
+@page "/"
+@using PaymentService.API.Data
+@using PaymentService.API.Entities
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+@if (!AuthState.IsLoggedIn)
+{
+    <p>Đang chuyển hướng...</p>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">
+                    @(AuthState.IsAdmin ? "📊 Quản lý Hóa đơn" : "📄 Hóa đơn của tôi")
+                </h1>
+                <p class="page-subtitle">
+                    @(AuthState.IsAdmin ? "Xem và quản lý tất cả hóa đơn trong hệ thống" : "Theo dõi và thanh toán các hóa đơn học phí")
+                </p>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        @if (_invoices != null)
+        {
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--total">📋</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Tổng hóa đơn</span>
+                        <span class="stat-value">@_invoices.Count</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--paid">✅</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Đã thanh toán</span>
+                        <span class="stat-value stat-value--success">@_invoices.Count(i => i.Status == InvoiceStatus.Paid)</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--pending">⏳</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Chờ thanh toán</span>
+                        <span class="stat-value stat-value--warning">@_invoices.Count(i => i.Status == InvoiceStatus.Pending)</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--amount">💰</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Tổng tiền đã thu</span>
+                        <span class="stat-value stat-value--primary">@FormatCurrency(_invoices.Where(i => i.Status == InvoiceStatus.Paid).Sum(i => i.Amount))</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="card filter-bar">
+                <div class="filter-tabs">
+                    <button class="filter-tab @(_filter == "all" ? "filter-tab--active" : "")" @onclick='() => SetFilter("all")'>Tất cả (@_invoices.Count)</button>
+                    <button class="filter-tab @(_filter == "Pending" ? "filter-tab--active" : "")" @onclick='() => SetFilter("Pending")'>⏳ Chờ TT (@_invoices.Count(i => i.Status == InvoiceStatus.Pending))</button>
+                    <button class="filter-tab @(_filter == "Paid" ? "filter-tab--active" : "")" @onclick='() => SetFilter("Paid")'>✅ Đã TT (@_invoices.Count(i => i.Status == InvoiceStatus.Paid))</button>
+                    <button class="filter-tab @(_filter == "Overdue" ? "filter-tab--active" : "")" @onclick='() => SetFilter("Overdue")'>🔴 Quá hạn (@_invoices.Count(i => i.Status == InvoiceStatus.Overdue))</button>
+                </div>
+            </div>
+
+            <!-- Toast -->
+            @if (!string.IsNullOrEmpty(_toast))
+            {
+                <div class="toast toast-success">@_toast</div>
+            }
+
+            <!-- Invoice Table -->
+            @if (FilteredInvoices.Any())
+            {
+                <div class="card table-card">
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Khóa học</th>
+                                    @if (AuthState.IsAdmin) { <th>Học viên</th> }
+                                    <th>Số tiền</th>
+                                    <th>Trạng thái</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Ngày TT</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var inv in FilteredInvoices)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="course-info">
+                                                <span class="course-name">@inv.CourseName</span>
+                                                <span class="course-id">@(inv.CourseId ?? "N/A")</span>
+                                            </div>
+                                        </td>
+                                        @if (AuthState.IsAdmin)
+                                        {
+                                            <td><span class="student-name">@inv.User.FullName</span></td>
+                                        }
+                                        <td class="amount">@FormatCurrency(inv.Amount)</td>
+                                        <td>
+                                            <span class="badge @GetBadgeClass(inv.Status)">
+                                                <span class="badge-dot"></span>
+                                                @GetStatusText(inv.Status)
+                                            </span>
+                                        </td>
+                                        <td>@inv.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                        <td>@(inv.PaidAt?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                        <td>
+                                            @if (inv.Status != InvoiceStatus.Paid)
+                                            {
+                                                <button class="btn btn-success btn-sm"
+                                                        disabled="@(_payingId == inv.InvoiceId)"
+                                                        @onclick="() => HandlePay(inv)">
+                                                    @if (_payingId == inv.InvoiceId)
+                                                    { <span>...</span> }
+                                                    else
+                                                    { <span>💳 Thanh toán</span> }
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="paid-check">✓</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="card empty-state">
+                    <div class="empty-icon">📭</div>
+                    <h3>Không có hóa đơn nào</h3>
+                    <p>Không tìm thấy hóa đơn với trạng thái này.</p>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="card" style="padding:40px; text-align:center; color:var(--text-muted);">
+                Đang tải dữ liệu...
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Invoice>? _invoices;
+    private string _filter = "all";
+    private Guid? _payingId;
+    private string _toast = "";
+
+    private IEnumerable<Invoice> FilteredInvoices => _filter switch
+    {
+        "Pending" => _invoices!.Where(i => i.Status == InvoiceStatus.Pending),
+        "Paid" => _invoices!.Where(i => i.Status == InvoiceStatus.Paid),
+        "Overdue" => _invoices!.Where(i => i.Status == InvoiceStatus.Overdue),
+        _ => _invoices!
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsLoggedIn)
+        {
+            Nav.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+
+        var query = Db.Invoices.Include(i => i.User).AsQueryable();
+
+        if (!AuthState.IsAdmin)
+        {
+            query = query.Where(i => i.UserId == AuthState.UserId);
+        }
+
+        _invoices = await query.OrderByDescending(i => i.CreatedAt).ToListAsync();
+    }
+
+    private void SetFilter(string filter)
+    {
+        _filter = filter;
+    }
+
+    private async Task HandlePay(Invoice invoice)
+    {
+        _payingId = invoice.InvoiceId;
+
+        // Mô phỏng thanh toán
+        invoice.Status = InvoiceStatus.Paid;
+        invoice.PaidAt = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+
+        _toast = $"🎉 Thanh toán \"{invoice.CourseName}\" thành công!";
+        _payingId = null;
+
+        // Tự ẩn toast sau 3 giây
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            _toast = "";
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private string FormatCurrency(decimal amount) =>
+        amount.ToString("N0") + " ₫";
+
+    private string GetBadgeClass(InvoiceStatus status) => status switch
+    {
+        InvoiceStatus.Paid => "badge-paid",
+        InvoiceStatus.Pending => "badge-pending",
+        InvoiceStatus.Overdue => "badge-overdue",
+        _ => ""
+    };
+
+    private string GetStatusText(InvoiceStatus status) => status switch
+    {
+        InvoiceStatus.Paid => "Đã TT",
+        InvoiceStatus.Pending => "Chờ TT",
+        InvoiceStatus.Overdue => "Quá hạn",
+        _ => ""
+    };
+}

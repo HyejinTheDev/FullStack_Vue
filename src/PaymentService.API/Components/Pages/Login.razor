@@ -1,0 +1,125 @@
+@page "/login"
+@using PaymentService.API.Data
+@using Microsoft.EntityFrameworkCore
+@layout MainLayout
+@inject AppDbContext Db
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="login-page">
+    <div class="login-container">
+        <!-- Left: Branding -->
+        <div class="login-hero">
+            <div class="hero-content">
+                <div class="hero-icon">💳</div>
+                <h1 class="hero-title">Payment Service</h1>
+                <p class="hero-subtitle">Hệ thống Thanh toán & Báo cáo</p>
+                <div class="hero-divider"></div>
+                <div class="hero-info">
+                    <p>📚 Quản lý khóa học & học viên trung tâm</p>
+                    <p>👥 Nhóm 9 — Bài tập lớn Fullstack</p>
+                </div>
+                <div class="hero-members">
+                    <div class="member">Nguyễn Đình Minh Hiếu — 1771020269</div>
+                    <div class="member">Nguyễn Công Hiệp — 1771020257</div>
+                    <div class="member">Bùi Thế Đạt — 1771020138</div>
+                </div>
+            </div>
+            <div class="hero-glow"></div>
+        </div>
+
+        <!-- Right: Login Form -->
+        <div class="login-form-wrapper">
+            <div class="login-form-inner">
+                <h2 class="form-title">Đăng nhập</h2>
+                <p class="form-subtitle">Nhập tài khoản để truy cập hệ thống</p>
+
+                <form @onsubmit="HandleLogin" @onsubmit:preventDefault>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input @bind="_email" type="email" class="form-input" placeholder="admin@trungtam.com" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Mật khẩu</label>
+                        <input @bind="_password" type="password" class="form-input" placeholder="••••••••" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorMsg))
+                    {
+                        <div class="error-box">⚠️ @_errorMsg</div>
+                    }
+
+                    <button type="submit" class="btn btn-primary btn-login" disabled="@_loading">
+                        @if (_loading)
+                        {
+                            <span>Đang đăng nhập...</span>
+                        }
+                        else
+                        {
+                            <span>Đăng nhập</span>
+                        }
+                    </button>
+                </form>
+
+                <!-- Demo accounts -->
+                <div class="demo-accounts">
+                    <p class="demo-title">🔑 Tài khoản demo</p>
+                    <div class="demo-grid">
+                        <div class="demo-item" @onclick='() => FillDemo("admin@trungtam.com", "Admin@123")'>
+                            <span class="demo-role badge badge-paid">Admin</span>
+                            <span class="demo-email">admin@trungtam.com</span>
+                        </div>
+                        <div class="demo-item" @onclick='() => FillDemo("hieu@student.com", "Hieu@123")'>
+                            <span class="demo-role badge badge-pending">Student</span>
+                            <span class="demo-email">hieu@student.com</span>
+                        </div>
+                        <div class="demo-item" @onclick='() => FillDemo("hiep@student.com", "Hiep@123")'>
+                            <span class="demo-role badge badge-pending">Student</span>
+                            <span class="demo-email">hiep@student.com</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private string _errorMsg = "";
+    private bool _loading = false;
+
+    protected override void OnInitialized()
+    {
+        if (AuthState.IsLoggedIn)
+        {
+            Nav.NavigateTo("/", forceLoad: false);
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        _errorMsg = "";
+        _loading = true;
+
+        var user = await Db.Users.FirstOrDefaultAsync(u => u.Email == _email);
+        if (user == null || !BCrypt.Net.BCrypt.Verify(_password, user.PasswordHash))
+        {
+            _errorMsg = "Email hoặc mật khẩu không đúng";
+            _loading = false;
+            return;
+        }
+
+        AuthState.Login(user.UserId, user.FullName, user.Email, user.Role.ToString());
+        Nav.NavigateTo("/", forceLoad: false);
+    }
+
+    private void FillDemo(string email, string password)
+    {
+        _email = email;
+        _password = password;
+    }
+}

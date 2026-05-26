@@ -1,0 +1,28 @@
+# Node / Vue / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.log
+npm-debug.log*
+
+# .NET / C#
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# OS / Editors
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db

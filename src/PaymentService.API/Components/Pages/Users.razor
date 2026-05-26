@@ -1,0 +1,97 @@
+@page "/users"
+@using PaymentService.API.Data
+@using PaymentService.API.Entities
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+@if (!AuthState.IsAdmin)
+{
+    <div class="container">
+        <div class="card empty-state">
+            <div class="empty-icon">🔒</div>
+            <h3>Không có quyền truy cập</h3>
+            <p>Trang này chỉ dành cho Admin.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">👥 Quản lý Users</h1>
+                <p class="page-subtitle">Danh sách tất cả tài khoản trong hệ thống</p>
+            </div>
+        </div>
+
+        @if (_users != null)
+        {
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--total">👤</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Tổng user</span>
+                        <span class="stat-value">@_users.Count</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--pending">🎓</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Học viên</span>
+                        <span class="stat-value stat-value--warning">@_users.Count(u => u.Role == UserRole.Student)</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--paid">🛡️</div>
+                    <div class="stat-body">
+                        <span class="stat-label">Admin</span>
+                        <span class="stat-value stat-value--success">@_users.Count(u => u.Role == UserRole.Admin)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Họ tên</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Ngày tạo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in _users)
+                        {
+                            <tr>
+                                <td style="font-weight:600; color:var(--text-primary);">@user.FullName</td>
+                                <td>@user.Email</td>
+                                <td>
+                                    <span class="badge @(user.Role == UserRole.Admin ? "badge-paid" : "badge-pending")">
+                                        @user.Role.ToString()
+                                    </span>
+                                </td>
+                                <td>@user.CreatedAt.ToString("dd/MM/yyyy")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<User>? _users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsLoggedIn) { Nav.NavigateTo("/login"); return; }
+        if (!AuthState.IsAdmin) return;
+
+        _users = await Db.Users.OrderByDescending(u => u.CreatedAt).ToListAsync();
+    }
+}
