@@ -54,6 +54,17 @@ builder.Services.AddAuthentication(options =>
 });
 builder.Services.AddAuthorization();
 
+// === CORS ===
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // === DI: Business Services ===
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -110,6 +121,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors("AllowAll");
 app.UseStaticFiles();
 app.UseAntiforgery();
 app.UseAuthentication();

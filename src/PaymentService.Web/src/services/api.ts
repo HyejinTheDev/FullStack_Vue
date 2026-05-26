@@ -1,8 +1,11 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
+const isProd = import.meta.env.PROD;
+const apiBaseUrl = isProd ? 'https://btl-payment-api.onrender.com/api' : '/api';
+
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' }
 })
@@ -27,7 +30,7 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken')
         if (refreshToken) {
-          const res = await axios.post('/api/v1/auth/refresh-token', { refreshToken })
+          const res = await axios.post(`${apiBaseUrl}/v1/auth/refresh-token`, { refreshToken })
           if (res.data.success) {
             localStorage.setItem('accessToken', res.data.data.accessToken)
             localStorage.setItem('refreshToken', res.data.data.refreshToken)
