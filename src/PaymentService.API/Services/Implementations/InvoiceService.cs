@@ -4,6 +4,7 @@ using PaymentService.API.DTOs;
 using PaymentService.API.DTOs.Invoices;
 using PaymentService.API.DTOs.Payments;
 using PaymentService.API.Enums;
+using PaymentService.API.Entities;
 using PaymentService.API.Services.Interfaces;
 
 namespace PaymentService.API.Services.Implementations;
@@ -131,5 +132,52 @@ public class InvoiceService : IInvoiceService
         }
 
         return ApiResponse<object>.Ok(null!, "Webhook xử lý thành công");
+    }
+
+    public async Task<ApiResponse<InvoiceDto>> CreateInvoiceAsync(CreateInvoiceRequest request)
+    {
+        var userExists = await _db.Users.AnyAsync(u => u.UserId == request.UserId);
+        if (!userExists)
+        {
+            var tempUser = new User
+            {
+                UserId = request.UserId,
+                FullName = "Học viên liên kết",
+                Email = $"{request.UserId}@trungtam.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Student@123"),
+                Role = UserRole.Student,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Users.Add(tempUser);
+            await _db.SaveChangesAsync();
+        }
+
+        var invoice = new Invoice
+        {
+            InvoiceId = Guid.NewGuid(),
+            UserId = request.UserId,
+            CourseName = request.CourseName,
+            CourseId = request.CourseId,
+            Amount = request.Amount,
+            Status = InvoiceStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Invoices.Add(invoice);
+        await _db.SaveChangesAsync();
+
+        var dbUser = await _db.Users.FindAsync(request.UserId);
+
+        return ApiResponse<InvoiceDto>.Ok(new InvoiceDto
+        {
+            InvoiceId = invoice.InvoiceId,
+            UserId = invoice.UserId,
+            StudentName = dbUser?.FullName ?? "Học viên liên kết",
+            CourseName = invoice.CourseName,
+            CourseId = invoice.CourseId,
+            Amount = invoice.Amount,
+            Status = invoice.Status.ToString(),
+            CreatedAt = invoice.CreatedAt
+        }, "Tạo hóa đơn thành công");
     }
 }

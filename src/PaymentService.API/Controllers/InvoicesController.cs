@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PaymentService.API.DTOs.Payments;
+using PaymentService.API.DTOs.Invoices;
 using PaymentService.API.Services.Interfaces;
 
 namespace PaymentService.API.Controllers;
@@ -65,6 +66,17 @@ public class InvoicesController : ControllerBase
     public async Task<IActionResult> PaymentWebhook([FromBody] PaymentWebhookRequest request)
     {
         var result = await _invoiceService.HandleWebhookAsync(request);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// POST /api/v1/invoices - Tạo hóa đơn mới (Dành cho Nhóm 7 & 8 gọi sang)
+    /// </summary>
+    [HttpPost("invoices")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CreateInvoice([FromBody] CreateInvoiceRequest request)
+    {
+        var result = await _invoiceService.CreateInvoiceAsync(request);
         return StatusCode(result.StatusCode, result);
     }
 }

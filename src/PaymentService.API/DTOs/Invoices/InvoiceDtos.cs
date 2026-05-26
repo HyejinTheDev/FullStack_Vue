@@ -18,3 +18,11 @@ public class PayInvoiceResponse
     public string PaymentUrl { get; set; } = string.Empty; // URL redirect sang cổng thanh toán (mô phỏng)
     public string Message { get; set; } = string.Empty;
 }
+
+public class CreateInvoiceRequest
+{
+    public Guid UserId { get; set; }
+    public string CourseName { get; set; } = string.Empty;
+    public string CourseId { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+}

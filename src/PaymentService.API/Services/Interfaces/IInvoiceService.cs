@@ -10,4 +10,5 @@ public interface IInvoiceService
     Task<ApiResponse<InvoiceDto>> GetInvoiceByIdAsync(Guid invoiceId, Guid userId, bool isAdmin);
     Task<ApiResponse<PayInvoiceResponse>> PayInvoiceAsync(Guid invoiceId, Guid userId, bool isAdmin);
     Task<ApiResponse<object>> HandleWebhookAsync(PaymentWebhookRequest request);
+    Task<ApiResponse<InvoiceDto>> CreateInvoiceAsync(CreateInvoiceRequest request);
 }
